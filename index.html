@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Medidor</title>
+<style>
+:root{
+  --bg:#0b0e12; --panel:#12161c; --card:#1b212a; --txt:#eef1f5; --sub:#9aa4b2;
+  --accent:#3ddc84; --accent2:#4da3ff; --danger:#ff5a5f; --line:#2a3340;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f2f4f7; --panel:#ffffff; --card:#f7f9fb; --txt:#141a20; --sub:#5b6572;
+    --line:#e1e6ec;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b0e12; --panel:#12161c; --card:#1b212a; --txt:#eef1f5; --sub:#9aa4b2; --line:#2a3340;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;}
+*{box-sizing:border-box;}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;}
+#camWrap{position:relative;flex:1;overflow:hidden;background:#000;min-height:0;}
+video{width:100%;height:100%;object-fit:cover;}
+#crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:46px;height:46px;pointer-events:none;}
+#crosshair::before,#crosshair::after{content:"";position:absolute;background:var(--accent);}
+#crosshair::before{top:50%;left:0;width:100%;height:2px;transform:translateY(-50%);}
+#crosshair::after{left:50%;top:0;height:100%;width:2px;transform:translateX(-50%);}
+#angleReadout{position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.55);color:#fff;padding:6px 14px;border-radius:20px;font-size:15px;font-weight:600;
+  padding-top:calc(6px + env(safe-area-inset-top,0px));margin-top:env(safe-area-inset-top,0px);}
+#camMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--sub);text-align:center;padding:24px;font-size:14px;}
+#tabs{display:flex;gap:6px;padding:10px 12px;background:var(--panel);overflow-x:auto;
+  border-bottom:1px solid var(--line);
+  padding-top:calc(10px + env(safe-area-inset-top,0px));}
+.tab{flex:none;padding:8px 14px;border-radius:20px;background:var(--card);color:var(--sub);
+  font-size:13px;font-weight:600;border:1px solid var(--line);white-space:nowrap;}
+.tab.active{background:var(--accent);color:#04140a;border-color:var(--accent);}
+#panel{background:var(--panel);padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--line);max-height:46vh;overflow-y:auto;}
+.row{display:flex;gap:10px;align-items:center;margin-bottom:10px;}
+label{font-size:13px;color:var(--sub);flex:1;}
+input[type=number],input[type=text],select{
+  background:var(--card);border:1px solid var(--line);color:var(--txt);
+  border-radius:10px;padding:8px 10px;font-size:15px;width:110px;}
+select{width:auto;flex:1;}
+button{border:none;border-radius:12px;padding:11px 16px;font-size:14px;font-weight:700;
+  cursor:pointer;}
+.btn-main{background:var(--accent);color:#04140a;width:100%;}
+.btn-alt{background:var(--card);color:var(--txt);border:1px solid var(--line);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btnRow{display:flex;gap:8px;margin-top:4px;}
+.result{font-size:22px;font-weight:800;color:var(--accent);text-align:center;margin:8px 0;}
+.hint{font-size:12px;color:var(--sub);margin-bottom:8px;line-height:1.4;}
+.list{max-height:110px;overflow-y:auto;margin:8px 0;}
+.item{display:flex;justify-content:space-between;background:var(--card);border:1px solid var(--line);
+  border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;}
+.item span.x{color:var(--danger);font-weight:700;padding-left:10px;}
+#compassView{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#fff;}
+#needle{width:120px;height:120px;border:3px solid var(--accent);border-radius:50%;position:relative;margin-bottom:10px;}
+#needle::before{content:"▲";position:absolute;top:-4px;left:50%;transform-origin:50% 64px;
+  transform:translateX(-50%) rotate(var(--rot,0deg));color:var(--accent);font-size:26px;}
+#levelView{display:none;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#fff;}
+#levelRing{width:220px;height:220px;border-radius:50%;border:3px solid var(--line);position:relative;
+  background:rgba(255,255,255,.03);}
+#levelDot{position:absolute;width:44px;height:44px;border-radius:50%;background:var(--danger);
+  top:50%;left:50%;transform:translate(-50%,-50%);transition:background .15s;}
+#levelDot.ok{background:var(--accent);}
+#levelCenter{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--txt);
+  top:50%;left:50%;transform:translate(-50%,-50%);opacity:.5;}
+#levelTxt{font-size:26px;font-weight:800;margin-top:14px;}
+#levelSub{color:var(--sub);font-size:13px;margin-top:2px;}
+#walkView{display:none;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#fff;}
+#walkSteps{font-size:56px;font-weight:800;}
+#walkDistBig{font-size:26px;font-weight:800;color:var(--accent);margin-top:8px;}
+.walkRow{display:flex;justify-content:space-between;width:260px;padding:6px 4px;border-bottom:1px solid var(--line);}
+.walkLabel{color:var(--sub);font-size:13px;}
+.walkVal{font-weight:700;font-size:15px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="camWrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="crosshair"></div>
+    <div id="angleReadout">— °</div>
+    <div id="camMsg" style="display:none"></div>
+    <div id="compassView" style="display:none">
+      <div id="needle"></div>
+      <div id="heading" style="font-size:28px;font-weight:800;">—°</div>
+      <div id="cardinal" style="color:var(--sub);margin-top:4px;">—</div>
+    </div>
+    <div id="levelView">
+      <div id="levelRing"><div id="levelCenter"></div><div id="levelDot"></div></div>
+      <div id="levelTxt">— °</div>
+      <div id="levelSub">incline até a bolha ficar verde no centro</div>
+    </div>
+    <div id="walkView">
+      <div class="walkRow"><span class="walkLabel">Passos</span><span id="walkStepsTxt" class="walkVal">0</span></div>
+      <div class="walkRow"><span class="walkLabel">Distância (passos)</span><span id="walkDistBig" class="walkVal">0 m</span></div>
+      <div class="walkRow"><span class="walkLabel">GPS (percurso)</span><span id="gpsPathTxt" class="walkVal">—</span></div>
+      <div class="walkRow"><span class="walkLabel">GPS (linha reta)</span><span id="gpsStraightTxt" class="walkVal">—</span></div>
+      <div id="gpsAccTxt" style="color:var(--sub);font-size:12px;margin-top:8px;">aguardando GPS...</div>
+    </div>
+  </div>
+  <div id="tabs"></div>
+  <div id="panel"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const video = $('#video'), camMsg = $('#camMsg'), compassView = $('#compassView'), camWrap = $('#camWrap');
+const angleReadout = $('#angleReadout');
+let refBeta = null, curBeta = 0, curAlpha = null, hasOrient = false;
+let saved = [];
+let walking = false, stepCount = 0, aboveHigh = false, lastStepTime = 0;
+const STEP_HIGH = 11.3, STEP_LOW = 9.3, STEP_MIN_INTERVAL = 280;
+let gpsWatchId = null, startCoords = null, lastCoords = null, gpsPathDist = 0, gpsAccuracy = null;
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function startGPS(){
+  if(!navigator.geolocation){ $('#gpsAccTxt').textContent='GPS não disponível neste navegador.'; return; }
+  startCoords=null; lastCoords=null; gpsPathDist=0; gpsAccuracy=null;
+  gpsWatchId = navigator.geolocation.watchPosition(pos=>{
+    const {latitude, longitude, accuracy} = pos.coords;
+    gpsAccuracy = accuracy;
+    if(!startCoords) startCoords = {lat:latitude, lon:longitude};
+    if(lastCoords){
+      const d = haversine(lastCoords.lat, lastCoords.lon, latitude, longitude);
+      if(d > 0.5) gpsPathDist += d; // ignora ruído menor que 0.5 m
+    }
+    lastCoords = {lat:latitude, lon:longitude};
+    updateWalkUI();
+  }, err=>{
+    const t = $('#gpsAccTxt'); if(t) t.textContent='GPS indisponível (permissão negada ou sem sinal).';
+  }, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+}
+function stopGPS(){
+  if(gpsWatchId!==null){ navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; }
+}
+try{ saved = JSON.parse(localStorage.getItem('medidor_saved')||'[]'); }catch(e){ saved=[]; }
+function persist(){ try{ localStorage.setItem('medidor_saved', JSON.stringify(saved)); }catch(e){} }
+
+const MODES = [
+  {id:'distancia', label:'Distância'},
+  {id:'altura', label:'Altura'},
+  {id:'area', label:'Área'},
+  {id:'volume', label:'Volume'},
+  {id:'bussola', label:'Bússola'},
+  {id:'nivel', label:'Nível'},
+  {id:'caminhando', label:'Caminhando'},
+];
+let mode = 'distancia';
+
+function angleFromRef(){
+  if(refBeta===null) return null;
+  return (curBeta - refBeta);
+}
+
+function renderTabs(){
+  const t = $('#tabs'); t.innerHTML='';
+  MODES.forEach(m=>{
+    const b=document.createElement('div');
+    b.className='tab'+(m.id===mode?' active':'');
+    b.textContent=m.label;
+    b.onclick=()=>{ mode=m.id; renderTabs(); renderPanel(); updateCameraVisibility(); };
+    t.appendChild(b);
+  });
+}
+
+function updateCameraVisibility(){
+  compassView.style.display='none'; $('#levelView').style.display='none'; $('#walkView').style.display='none';
+  if(mode==='bussola'){
+    video.style.display='none'; $('#crosshair').style.display='none';
+    angleReadout.style.display='none'; compassView.style.display='flex';
+  } else if(mode==='nivel'){
+    video.style.display='none'; $('#crosshair').style.display='none';
+    angleReadout.style.display='none'; $('#levelView').style.display='flex';
+  } else if(mode==='caminhando'){
+    video.style.display='none'; $('#crosshair').style.display='none';
+    angleReadout.style.display='none'; $('#walkView').style.display='flex';
+  } else {
+    video.style.display='block'; $('#crosshair').style.display='block';
+    angleReadout.style.display='block';
+  }
+}
+
+function fmt(n){ return (Math.round(n*100)/100).toLocaleString('pt-BR'); }
+
+function savedOptionsHTML(){
+  if(saved.length===0) return '<option value="">— nenhuma medida salva —</option>';
+  return saved.map((s,i)=>`<option value="${i}">${s.label}: ${fmt(s.value)} m</option>`).join('');
+}
+
+function renderPanel(){
+  const p = $('#panel');
+  if(mode==='distancia'){
+    p.innerHTML = `
+      <div class="hint">Aponte a câmera para o ponto no chão (base do objeto). Informe a altura do celular até o chão, mire e capture o ângulo.</div>
+      <div class="row"><label>Altura do celular (m)</label><input id="h1" type="number" step="0.01" value="1.4"></div>
+      <div class="row"><label>Ângulo capturado</label><div id="angShow" style="font-weight:700">—</div></div>
+      <div class="btnRow">
+        <button class="btn-alt" onclick="calibrate()">Nivelar (zerar)</button>
+        <button class="btn-main" onclick="captureAngle('dist')">Capturar ângulo</button>
+      </div>
+      <div class="result" id="res1">—</div>
+      <div class="btnRow"><button class="btn-alt" onclick="saveResult('dist')">Salvar medida</button></div>
+      ${renderSavedList()}
+    `;
+  } else if(mode==='altura'){
+    p.innerHTML = `
+      <div class="hint">Fique a uma distância conhecida da base do objeto, aponte para o topo e capture o ângulo.</div>
+      <div class="row"><label>Distância até a base (m)</label><input id="h2" type="number" step="0.01" value="5"></div>
+      <div class="row"><label>Altura dos olhos (m)</label><input id="h3" type="number" step="0.01" value="1.6"></div>
+      <div class="row"><label>Ângulo capturado</label><div id="angShow2" style="font-weight:700">—</div></div>
+      <div class="btnRow">
+        <button class="btn-alt" onclick="calibrate()">Nivelar (zerar)</button>
+        <button class="btn-main" onclick="captureAngle('alt')">Capturar ângulo</button>
+      </div>
+      <div class="result" id="res2">—</div>
+      <div class="btnRow"><button class="btn-alt" onclick="saveResult('alt')">Salvar medida</button></div>
+      ${renderSavedList()}
+    `;
+  } else if(mode==='area'){
+    p.innerHTML = `
+      <div class="hint">Escolha duas medidas salvas (comprimento e largura) ou digite manualmente.</div>
+      <div class="row"><label>Lado A</label><select id="selA">${savedOptionsHTML()}</select><input id="manA" type="number" step="0.01" placeholder="ou m"></div>
+      <div class="row"><label>Lado B</label><select id="selB">${savedOptionsHTML()}</select><input id="manB" type="number" step="0.01" placeholder="ou m"></div>
+      <button class="btn-main" onclick="calcArea()">Calcular área</button>
+      <div class="result" id="resArea">—</div>
+    `;
+  } else if(mode==='volume'){
+    p.innerHTML = `
+      <div class="hint">Escolha três medidas salvas (comprimento, largura, altura) ou digite manualmente.</div>
+      <div class="row"><label>Comprimento</label><select id="selC">${savedOptionsHTML()}</select><input id="manC" type="number" step="0.01" placeholder="ou m"></div>
+      <div class="row"><label>Largura</label><select id="selD">${savedOptionsHTML()}</select><input id="manD" type="number" step="0.01" placeholder="ou m"></div>
+      <div class="row"><label>Altura</label><select id="selE">${savedOptionsHTML()}</select><input id="manE" type="number" step="0.01" placeholder="ou m"></div>
+      <button class="btn-main" onclick="calcVolume()">Calcular volume</button>
+      <div class="result" id="resVol">—</div>
+    `;
+  } else if(mode==='bussola'){
+    p.innerHTML = `<div class="hint">Direção para onde a parte de trás do celular aponta. Precisa de calibração do sensor magnético do aparelho.</div>`;
+  } else if(mode==='nivel'){
+    p.innerHTML = `<div class="hint">Deite o celular sobre uma superfície (ou encoste na parede) para ver se está nivelado/aprumado. A bolha fica verde quando o desvio é menor que 1°.</div>`;
+  } else if(mode==='caminhando'){
+    p.innerHTML = `
+      <div class="hint">Ande em linha reta até o alvo. Compara a contagem de passos com o GPS (melhor em áreas abertas; em ambientes fechados o GPS costuma falhar ou ter erro grande).</div>
+      <div class="row"><label>Tamanho do seu passo (m)</label><input id="stepLen" type="number" step="0.01" value="0.75" onchange="updateWalkUI()"></div>
+      <div class="btnRow">
+        <button class="btn-main" id="walkBtn" onclick="toggleWalk()">Iniciar caminhada</button>
+        <button class="btn-alt" onclick="resetWalk()">Zerar</button>
+      </div>
+      <div class="btnRow"><button class="btn-alt" onclick="saveWalk()">Salvar comparação</button></div>
+      ${renderSavedList()}
+    `;
+  }
+}
+
+function renderSavedList(){
+  if(saved.length===0) return '<div class="hint">Nenhuma medida salva ainda.</div>';
+  return '<div class="list">'+saved.map((s,i)=>
+    `<div class="item"><span>${s.label}: ${fmt(s.value)} m</span><span class="x" onclick="delSaved(${i})">remover ✕</span></div>`
+  ).join('')+'</div>';
+}
+function delSaved(i){ saved.splice(i,1); persist(); renderPanel(); }
+
+function calibrate(){
+  refBeta = curBeta;
+}
+
+let lastAngleValue = null, lastMode = null;
+function captureAngle(which){
+  const a = angleFromRef();
+  if(a===null){ alert('Toque em "Nivelar" primeiro, segurando o celular na horizontal apontando para o alvo de referência.'); return; }
+  lastAngleValue = a; lastMode = which;
+  if(which==='dist'){
+    $('#angShow').textContent = fmt(a)+'°';
+    const h = parseFloat($('#h1').value)||0;
+    const rad = Math.abs(a)*Math.PI/180;
+    if(rad < 0.01){ $('#res1').textContent = 'Ângulo muito raso'; return; }
+    const dist = h/Math.tan(rad);
+    $('#res1').textContent = fmt(dist)+' m';
+  } else if(which==='alt'){
+    $('#angShow2').textContent = fmt(a)+'°';
+    const d = parseFloat($('#h2').value)||0;
+    const eye = parseFloat($('#h3').value)||0;
+    const rad = a*Math.PI/180;
+    const extra = d*Math.tan(rad);
+    const total = extra+eye;
+    $('#res2').textContent = fmt(total)+' m';
+  }
+}
+
+function saveResult(which){
+  let val, label;
+  if(which==='dist'){
+    const txt = $('#res1').textContent;
+    val = parseFloat(txt); if(isNaN(val)){ alert('Capture um ângulo válido antes de salvar.'); return; }
+    label = prompt('Nome para esta medida:', 'Distância '+(saved.length+1)) || ('Distância '+(saved.length+1));
+  } else {
+    const txt = $('#res2').textContent;
+    val = parseFloat(txt); if(isNaN(val)){ alert('Capture um ângulo válido antes de salvar.'); return; }
+    label = prompt('Nome para esta medida:', 'Altura '+(saved.length+1)) || ('Altura '+(saved.length+1));
+  }
+  saved.push({label, value: val}); persist(); renderPanel();
+}
+
+function resolveVal(selId, manId){
+  const sel = document.getElementById(selId), man = document.getElementById(manId);
+  if(man.value){ return parseFloat(man.value); }
+  if(sel.value!==''){ return saved[parseInt(sel.value)].value; }
+  return NaN;
+}
+function calcArea(){
+  const a = resolveVal('selA','manA'), b = resolveVal('selB','manB');
+  if(isNaN(a)||isNaN(b)){ $('#resArea').textContent='Preencha os dois lados'; return; }
+  $('#resArea').textContent = fmt(a*b)+' m²';
+}
+function calcVolume(){
+  const a = resolveVal('selC','manC'), b = resolveVal('selD','manD'), c = resolveVal('selE','manE');
+  if(isNaN(a)||isNaN(b)||isNaN(c)){ $('#resVol').textContent='Preencha as três dimensões'; return; }
+  $('#resVol').textContent = fmt(a*b*c)+' m³';
+}
+
+function toggleWalk(){
+  walking = !walking;
+  const btn = $('#walkBtn');
+  if(btn) btn.textContent = walking ? 'Parar caminhada' : 'Iniciar caminhada';
+  if(walking){ stepCount=0; aboveHigh=false; lastStepTime=0; startGPS(); }
+  else { stopGPS(); }
+  updateWalkUI();
+}
+function resetWalk(){
+  walking=false; stepCount=0; aboveHigh=false;
+  stopGPS(); startCoords=null; lastCoords=null; gpsPathDist=0; gpsAccuracy=null;
+  const btn = $('#walkBtn'); if(btn) btn.textContent='Iniciar caminhada';
+  updateWalkUI();
+}
+function updateWalkUI(){
+  const lenInput = $('#stepLen');
+  const len = lenInput ? (parseFloat(lenInput.value)||0.75) : 0.75;
+  const dist = stepCount*len;
+  const s1=$('#walkStepsTxt'), s2=$('#walkDistBig'), g1=$('#gpsPathTxt'), g2=$('#gpsStraightTxt'), g3=$('#gpsAccTxt');
+  if(s1) s1.textContent = stepCount;
+  if(s2) s2.textContent = fmt(dist)+' m';
+  if(g1) g1.textContent = gpsPathDist>0 ? fmt(gpsPathDist)+' m' : '—';
+  if(g2){
+    if(startCoords && lastCoords){
+      g2.textContent = fmt(haversine(startCoords.lat, startCoords.lon, lastCoords.lat, lastCoords.lon))+' m';
+    } else { g2.textContent = '—'; }
+  }
+  if(g3) g3.textContent = gpsAccuracy!==null ? `precisão do GPS: ±${fmt(gpsAccuracy)} m` : (walking ? 'aguardando sinal de GPS...' : '—');
+}
+function saveWalk(){
+  const lenInput = $('#stepLen');
+  const len = lenInput ? (parseFloat(lenInput.value)||0.75) : 0.75;
+  if(stepCount===0 && gpsPathDist===0){ alert('Nenhuma medida capturada ainda. Inicie a caminhada e ande.'); return; }
+  const label = prompt('Nome para esta comparação:', 'Caminhada '+(saved.length+1)) || ('Caminhada '+(saved.length+1));
+  if(stepCount>0) saved.push({label: label+' · passos', value: stepCount*len});
+  if(gpsPathDist>0) saved.push({label: label+' · GPS percurso', value: gpsPathDist});
+  if(startCoords && lastCoords){
+    const straight = haversine(startCoords.lat, startCoords.lon, lastCoords.lat, lastCoords.lon);
+    if(straight>0.3) saved.push({label: label+' · GPS linha reta', value: straight});
+  }
+  persist(); renderPanel();
+}
+function handleMotion(e){
+  if(!walking) return;
+  const ac = e.accelerationIncludingGravity;
+  if(!ac || ac.x===null || ac.x===undefined) return;
+  const mag = Math.sqrt((ac.x||0)**2 + (ac.y||0)**2 + (ac.z||0)**2);
+  const now = performance.now();
+  if(!aboveHigh && mag > STEP_HIGH && (now-lastStepTime) > STEP_MIN_INTERVAL){
+    aboveHigh = true;
+  }
+  if(aboveHigh && mag < STEP_LOW){
+    aboveHigh = false;
+    stepCount++;
+    lastStepTime = now;
+    updateWalkUI();
+  }
+}
+
+// Sensors
+function handleOrientation(e){
+  hasOrient = true;
+  if(e.beta!==null) curBeta = e.beta;
+  const curGamma = e.gamma!==null ? e.gamma : 0;
+  if(mode==='nivel'){
+    // beta ~90 = celular em pé (aprumado); beta ~0 = celular deitado (nivelado)
+    const uprightDev = curBeta - 90, flatDev = curBeta;
+    const devB = Math.abs(uprightDev) < Math.abs(flatDev) ? uprightDev : flatDev;
+    const devG = curGamma;
+    const totalDev = Math.sqrt(devB*devB + devG*devG);
+    const dot = $('#levelDot');
+    const maxOff = 80; // px de deslocamento máximo do centro do anel
+    const dx = Math.max(-maxOff, Math.min(maxOff, devG*3));
+    const dy = Math.max(-maxOff, Math.min(maxOff, devB*3));
+    dot.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    dot.classList.toggle('ok', totalDev < 1);
+    $('#levelTxt').textContent = fmt(totalDev)+'°';
+    $('#levelSub').textContent = totalDev < 1 ? 'nivelado!' : `eixo vertical ${fmt(devB)}° · eixo lateral ${fmt(devG)}°`;
+  }
+  if(e.webkitCompassHeading!==undefined){
+    curAlpha = e.webkitCompassHeading;
+  } else if(e.alpha!==null){
+    curAlpha = 360 - e.alpha;
+  }
+  const a = angleFromRef();
+  angleReadout.textContent = (refBeta===null ? 'toque "Nivelar" antes de mirar' : fmt(a)+'°');
+  if(mode==='bussola' && curAlpha!==null){
+    $('#heading').textContent = Math.round(curAlpha)+'°';
+    $('#needle').style.setProperty('--rot', (-curAlpha)+'deg');
+    const dirs=['N','NE','L','SE','S','SO','O','NO'];
+    $('#cardinal').textContent = dirs[Math.round(curAlpha/45)%8];
+  }
+}
+
+async function initSensors(){
+  if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+    try{
+      const r = await DeviceOrientationEvent.requestPermission();
+      if(r==='granted'){ window.addEventListener('deviceorientation', handleOrientation, true); }
+      else { camMsg.style.display='flex'; camMsg.textContent='Permissão de sensores negada. Ative em Ajustes > Safari > Movimento e Orientação.'; }
+    }catch(e){ window.addEventListener('deviceorientation', handleOrientation, true); }
+  } else {
+    window.addEventListener('deviceorientation', handleOrientation, true);
+  }
+  if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+    try{
+      const r2 = await DeviceMotionEvent.requestPermission();
+      if(r2==='granted'){ window.addEventListener('devicemotion', handleMotion, true); }
+    }catch(e){ window.addEventListener('devicemotion', handleMotion, true); }
+  } else {
+    window.addEventListener('devicemotion', handleMotion, true);
+  }
+}
+
+async function initCamera(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
+    video.srcObject = stream;
+  }catch(e){
+    camMsg.style.display='flex';
+    camMsg.textContent = 'Não foi possível acessar a câmera. Você ainda pode usar os sensores mirando o celular manualmente.';
+  }
+}
+
+window.addEventListener('load', ()=>{
+  renderTabs(); renderPanel(); updateCameraVisibility();
+  initCamera();
+  initSensors();
+});
+</script>
+</body>
+</html>
